@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from redis.exceptions import RedisError
 from sqlalchemy import text
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from app.api.v1.router import api_router
 from app.core.config import _get_settings_cached, get_settings
@@ -42,19 +42,20 @@ def create_app() -> FastAPI:
         redoc_url=None,
         lifespan=lifespan,
     )
-    app.add_middleware(SecurityHeadersMiddleware)
-    cors_kwargs = {
+
+    cors_origins = settings.cors_origins_list
+    cors_kwargs: dict = {
         "allow_credentials": True,
         "allow_methods": ["*"],
         "allow_headers": ["*"],
+        "allow_origins": cors_origins,
     }
     if settings.app_env == "development":
         # LAN devices join via http://<ip>:5173 → API on :8000
         cors_kwargs["allow_origin_regex"] = r"https?://[\w.\-]+(:\d+)?"
-    else:
-        cors_kwargs["allow_origins"] = settings.cors_origins_list
+    app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(CORSMiddleware, **cors_kwargs)
-    logger.info("CORS allowed origins: %s", settings.cors_origins_list)
+    logger.info("CORS allowed origins: %s", cors_origins)
 
     @app.get("/health")
     async def health():
@@ -100,6 +101,18 @@ def create_app() -> FastAPI:
             },
         )
 
+    @app.exception_handler(ProgrammingError)
+    async def database_schema_missing(_request: Request, exc: ProgrammingError):
+        message = str(exc.orig) if exc.orig else str(exc)
+        detail = (
+            "Database schema is missing. On the server run: "
+            "cd /home/deploy/apps/ticktalk-api && source venv/bin/activate && "
+            "alembic upgrade head && PYTHONPATH=. python -m scripts.seed"
+        )
+        if "doesn't exist" in message.lower():
+            return JSONResponse(status_code=503, content={"detail": detail, "error": message})
+        return JSONResponse(status_code=500, content={"detail": "Database query failed", "error": message})
+
     @app.exception_handler(RedisError)
     async def redis_unavailable(_request: Request, exc: RedisError):
         return JSONResponse(
@@ -111,6 +124,14 @@ def create_app() -> FastAPI:
                 ),
                 "error": str(exc),
             },
+        )
+
+    @app.exception_handler(Exception)
+    async def unhandled_server_error(request: Request, exc: Exception):
+        logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
         )
 
     @app.get("/")

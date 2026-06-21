@@ -78,7 +78,10 @@ async def clear_login_attempts(email: str) -> None:
     except (RedisError, OSError, ConnectionError) as exc:
         if _skip_redis_in_dev(exc):
             return
-        raise
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Login temporarily unavailable. Start Redis (docker compose up -d).",
+        ) from exc
 
 
 async def authenticate_admin(db: AsyncSession, email: str, password: str) -> Admin:
