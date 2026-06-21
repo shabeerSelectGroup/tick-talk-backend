@@ -1,6 +1,7 @@
 import os
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,6 +16,17 @@ class Settings(BaseSettings):
 
     database_url: str = "mysql+aiomysql://ticktalk:ticktalk@localhost:3306/ticktalk"
     redis_url: str = "redis://localhost:6379/0"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        if not isinstance(value, str):
+            return value
+        if value.startswith("mysql://"):
+            return "mysql+aiomysql://" + value.removeprefix("mysql://")
+        if value.startswith("mysql+pymysql://"):
+            return "mysql+aiomysql://" + value.removeprefix("mysql+pymysql://")
+        return value
 
     jwt_access_expire_minutes: int = 30
     jwt_refresh_expire_days: int = 7
@@ -51,7 +63,15 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [o.strip() for o in self.app_cors_origins.split(",") if o.strip()]
+        origins: list[str] = []
+        for raw in self.app_cors_origins.split(","):
+            origin = raw.strip().strip('"').strip("'").rstrip("/")
+            if origin and origin not in origins:
+                origins.append(origin)
+        public = self.app_public_url.strip().strip('"').strip("'").rstrip("/")
+        if public and public not in origins:
+            origins.append(public)
+        return origins
 
 
 @lru_cache

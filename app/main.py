@@ -43,23 +43,18 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.add_middleware(SecurityHeadersMiddleware)
+    cors_kwargs = {
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
     if settings.app_env == "development":
         # LAN devices join via http://<ip>:5173 → API on :8000
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origin_regex=r"https?://[\w.\-]+(:\d+)?",
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
+        cors_kwargs["allow_origin_regex"] = r"https?://[\w.\-]+(:\d+)?"
     else:
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=settings.cors_origins_list,
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
+        cors_kwargs["allow_origins"] = settings.cors_origins_list
+    app.add_middleware(CORSMiddleware, **cors_kwargs)
+    logger.info("CORS allowed origins: %s", settings.cors_origins_list)
 
     @app.get("/health")
     async def health():
