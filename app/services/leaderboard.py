@@ -113,24 +113,39 @@ async def get_leaderboard_ordered(
         select(EventSettings).where(EventSettings.event_id == event_id)
     )
     settings = settings_result.scalar_one_or_none()
-    if settings and not settings.leaderboard_enabled:
+    event_result = await db.execute(select(Event).where(Event.id == event_id))
+    event = event_result.scalar_one()
+    if settings and not settings.leaderboard_enabled and event.mode == EventMode.COMPETITION:
         return []
 
     if limit is None:
         limit = settings.leaderboard_size if settings else 20
 
     result = await db.execute(
-        select(Leaderboard, Participant)
-        .join(Participant, Leaderboard.participant_id == Participant.id)
-        .where(Leaderboard.event_id == event_id, Participant.is_active.is_(True))
-        .order_by(*RANK_ORDER)
+        select(Participant, Leaderboard)
+        .outerjoin(Leaderboard, (Leaderboard.participant_id == Participant.id) & (Leaderboard.event_id == event_id))
+        .where(Participant.event_id == event_id, Participant.is_active.is_(True))
+        .order_by(
+            case((Leaderboard.id.isnot(None), 0), else_=1).asc(),
+            *RANK_ORDER
+        )
         .limit(limit)
     )
     rows = result.all()
     output: list[dict] = []
     last_key: tuple | None = None
     dense_rank = 0
-    for i, (lb, p) in enumerate(rows):
+    for i, (p, lb) in enumerate(rows):
+        if lb is None:
+            lb = Leaderboard(
+                event_id=event_id,
+                participant_id=p.id,
+                score=0,
+                tasks_completed=0,
+                matches_count=0,
+                finished_at=None,
+                rank=None
+            )
         key = (lb.score, lb.tasks_completed, lb.finished_at)
         if key != last_key:
             dense_rank = i + 1

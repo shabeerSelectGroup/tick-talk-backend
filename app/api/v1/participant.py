@@ -281,13 +281,10 @@ async def leaderboard(
 ):
     result = await db.execute(select(Event).where(Event.id == participant.event_id))
     event = result.scalar_one()
-    if event.mode != EventMode.COMPETITION:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Leaderboard disabled in networking mode")
-
     from app.services.event_settings import get_settings_for_event
 
     ev_settings = await get_settings_for_event(db, event.id)
-    if not ev_settings or not ev_settings.leaderboard_enabled:
+    if event.mode == EventMode.COMPETITION and (not ev_settings or not ev_settings.leaderboard_enabled):
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Leaderboard is disabled for this event")
 
     board = await get_leaderboard(db, event.id)
