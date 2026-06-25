@@ -10,7 +10,6 @@ __pycache__/
 *.so
 
 # Environment and secrets
-.env
 .env.production
 .env.zip
 .env.local
