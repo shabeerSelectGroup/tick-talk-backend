@@ -24,7 +24,6 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
-          script_stop: true
           script: |
             set -euo pipefail
             APP_DIR="/home/deploy/apps/ticktalk-api"
