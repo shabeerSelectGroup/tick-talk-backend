@@ -110,6 +110,7 @@ async def upload_selfie(
     ctx: SelfieUploadContext,
     *,
     existing_selfie: Selfie | None = None,
+    extra_metadata: dict | None = None,
 ) -> SelfieUploadResult:
     """
     Process image, upload full + thumbnail, create/update Selfie row, link match.
@@ -140,6 +141,8 @@ async def upload_selfie(
         image_key=image_key,
         thumb_key=thumb_key,
     )
+    if extra_metadata:
+        metadata.update(extra_metadata)
 
     now = datetime.now(timezone.utc)
     if existing_selfie:

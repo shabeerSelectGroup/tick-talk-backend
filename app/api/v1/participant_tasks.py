@@ -17,9 +17,9 @@ from app.schemas.task_flow import (
     TaskFlowValidateScanResponse,
 )
 from app.services.activity import log_activity
-from app.services.ws_events import emit_selfie_uploaded, emit_task_completed
-from app.services.selfie_storage import SelfieStorageError, SelfieUploadContext, upload_selfie
+from app.services.image_processing import render_name_sign_card
 from app.services.manual_task import ManualTaskError, toggle_manual_participant_task
+from app.services.selfie_storage import SelfieStorageError, SelfieUploadContext, upload_selfie
 from app.services.task_completion import (
     TaskCompletionError,
     _flow_meta,
@@ -32,6 +32,7 @@ from app.services.task_completion import (
     record_scan_for_task,
     validate_scan_for_task,
 )
+from app.services.ws_events import emit_selfie_uploaded, emit_task_completed
 
 router = APIRouter(prefix="/tasks")
 
@@ -208,8 +209,71 @@ async def task_flow_complete(
     db: AsyncSession = Depends(get_db),
 ):
     pt, task = await get_participant_task(db, participant, participant_task_id)
+    selfie_id = body.selfie_id
+    partner_name = body.partner_name
+    partner_sign_raw = body.partner_sign
+    partner_sign = (
+        "drawn"
+        if partner_sign_raw and partner_sign_raw.startswith("data:image")
+        else partner_sign_raw
+    )
+
+    if selfie_id is None:
+        try:
+            await assert_flow_ready_for_selfie(pt, task)
+            card = render_name_sign_card(partner_name or "", partner_sign_raw)
+            upload = await upload_selfie(
+                db,
+                participant,
+                card,
+                "image/jpeg",
+                _selfie_ctx(participant, pt, task),
+                extra_metadata={
+                    "completion_method": "name",
+                    "partner_name": partner_name,
+                    "partner_sign": partner_sign,
+                },
+            )
+        except (TaskCompletionError, SelfieStorageError) as e:
+            raise _task_error(e) from e
+
+        selfie_id = upload.selfie_id
+        await log_activity(
+            db,
+            participant.event_id,
+            ActivityType.SELFIE_UPLOADED,
+            participant.id,
+            {
+                "selfie_id": upload.selfie_id,
+                "match_id": upload.match_id,
+                "task_id": task.id,
+                "completion_method": "name",
+                "partner_name": partner_name,
+            },
+            summary=f"Name submitted for {task.title}: {partner_name}",
+        )
+        await emit_selfie_uploaded(
+            participant.event_id,
+            participant_id=participant.id,
+            selfie_id=upload.selfie_id,
+            task_id=task.id,
+            match_id=upload.match_id,
+            image_url=upload.image_url,
+            thumbnail_url=upload.thumbnail_url,
+            display_name=participant.display_name,
+            task_title=task.title,
+        )
+
     try:
-        result = await complete_task(db, participant, pt, task, body.selfie_id)
+        result = await complete_task(
+            db,
+            participant,
+            pt,
+            task,
+            selfie_id,
+            partner_name=partner_name,
+            partner_sign=partner_sign,
+        )
     except TaskCompletionError as e:
         raise _task_error(e) from e
 
@@ -221,7 +285,7 @@ async def task_flow_complete(
         {
             "task_id": task.id,
             "participant_task_id": pt.id,
-            "selfie_id": body.selfie_id,
+            "selfie_id": result["selfie_id"],
             "points": result["points_awarded"],
         },
         summary=f"Completed: {task.title}",

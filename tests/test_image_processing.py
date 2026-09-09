@@ -1,3 +1,4 @@
+import base64
 import io
 
 import pytest
@@ -26,6 +27,49 @@ def test_process_selfie_compresses_and_thumbnails():
     assert result.width <= 1920
     assert result.height <= 1920
     assert result.thumbnail_width <= 480
+
+
+def test_render_name_sign_card_is_jpeg():
+    from app.services.image_processing import render_name_sign_card
+
+    data = render_name_sign_card("Alex Kim", "AK")
+    img = Image.open(io.BytesIO(data))
+    assert img.format == "JPEG"
+    assert img.size == (1080, 1080)
+
+
+def test_render_name_sign_card_accepts_drawn_signature():
+    from app.services.image_processing import render_name_sign_card
+
+    mark = Image.new("RGB", (200, 80), color=(255, 255, 255))
+    buf = io.BytesIO()
+    mark.save(buf, format="PNG")
+
+    data_url = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    data = render_name_sign_card("Sam Lee", data_url)
+    img = Image.open(io.BytesIO(data))
+    assert img.format == "JPEG"
+    assert img.size == (1080, 1080)
+
+
+def test_complete_request_accepts_name_without_selfie():
+    from app.schemas.task_flow import TaskFlowCompleteRequest
+
+    body = TaskFlowCompleteRequest(partner_name="Sam Lee", partner_sign="SL")
+    assert body.selfie_id is None
+    assert body.partner_name == "Sam Lee"
+    assert body.partner_sign == "SL"
+
+
+def test_complete_request_requires_selfie_or_name():
+    from pydantic import ValidationError
+
+    from app.schemas.task_flow import TaskFlowCompleteRequest
+
+    with pytest.raises(ValidationError):
+        TaskFlowCompleteRequest()
+    with pytest.raises(ValidationError):
+        TaskFlowCompleteRequest(partner_name="A")
 
 
 def test_validate_rejects_empty():

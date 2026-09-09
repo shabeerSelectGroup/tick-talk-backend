@@ -126,6 +126,9 @@ async def get_wall_selfies(
                 "thumbnail_url": thumbnail_url,
                 "uploaded_at": s.uploaded_at.isoformat() if s.uploaded_at else None,
                 "status": s.status.value,
+                "partner_name": (s.metadata_json or {}).get("partner_name"),
+                "partner_sign": (s.metadata_json or {}).get("partner_sign"),
+                "completion_method": (s.metadata_json or {}).get("completion_method"),
             }
         )
     return items

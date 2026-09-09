@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class TaskFlowScanRequest(BaseModel):
@@ -32,7 +32,25 @@ class TaskFlowSelfieUploadResponse(BaseModel):
 
 
 class TaskFlowCompleteRequest(BaseModel):
-    selfie_id: int
+    selfie_id: int | None = None
+    partner_name: str | None = Field(None, max_length=120)
+    partner_sign: str | None = Field(None, max_length=400_000)
+
+    @field_validator("partner_name", "partner_sign", mode="before")
+    @classmethod
+    def strip_optional_text(cls, value: object) -> object:
+        if isinstance(value, str):
+            stripped = value.strip()
+            return stripped or None
+        return value
+
+    @model_validator(mode="after")
+    def require_selfie_or_name(self):
+        if self.selfie_id is not None:
+            return self
+        if self.partner_name and len(self.partner_name) >= 2:
+            return self
+        raise ValueError("Provide a photo or a name (at least 2 characters)")
 
 
 class TaskFlowCompleteResponse(BaseModel):

@@ -12,6 +12,12 @@ def test_slugify():
     assert len(slug) <= 64
 
 
+def test_slugify_bingo_prefix():
+    slug = slugify("Loves hiking", prefix="bingo-")
+    assert slug.startswith("bingo-")
+    assert len(slug) <= 64
+
+
 def test_parse_bulk_text():
     text = """# comment
 Find someone who works in HR

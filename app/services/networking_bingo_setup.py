@@ -1,10 +1,10 @@
 """Ensure events using the 30-prompt bingo catalog have tasks and assignments."""
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.networking_bingo_tasks import BINGO_TASK_COUNT, networking_bingo_task_templates
-from app.models.enums import EventMode
+from app.models.enums import EventMode, TaskType
 from app.models.event import Event
 from app.models.task import Task
 from app.services.task_assignment import assign_all_tasks_to_participant, assign_task_to_all_participants
@@ -15,19 +15,27 @@ def event_uses_bingo_catalog(event: Event) -> bool:
     return event.mode in (EventMode.NETWORKING, EventMode.COMPETITION)
 
 
+def _is_bingo_prompt(task: Task) -> bool:
+    slug = task.slug or ""
+    return slug.startswith("bingo-") or bool((task.config_json or {}).get("bingo"))
+
+
+def _is_legacy_meet_task(task: Task) -> bool:
+    slug = (task.slug or "").lower()
+    return slug.startswith("meet-")
+
+
 async def _active_bingo_task_count(db: AsyncSession, event_id: int) -> int:
     result = await db.execute(
-        select(func.count(Task.id)).where(
-            Task.event_id == event_id,
-            Task.is_active.is_(True),
-            Task.slug.like("bingo-%"),
-        )
+        select(Task).where(Task.event_id == event_id, Task.is_active.is_(True))
     )
-    return int(result.scalar() or 0)
+    return sum(1 for task in result.scalars().all() if _is_bingo_prompt(task))
 
 
-async def _deactivate_non_bingo_tasks(db: AsyncSession, event_id: int) -> int:
-    """Hide legacy meet-N / competition tasks so only human-bingo prompts show."""
+async def _deactivate_non_bingo_tasks(
+    db: AsyncSession, event_id: int, *, only_legacy: bool = True
+) -> int:
+    """Hide legacy meet-N tasks so human-bingo prompts (including admin extras) show."""
     result = await db.execute(
         select(Task).where(
             Task.event_id == event_id,
@@ -35,12 +43,42 @@ async def _deactivate_non_bingo_tasks(db: AsyncSession, event_id: int) -> int:
             ~Task.slug.like("bingo-%"),
         )
     )
-    legacy = list(result.scalars().all())
-    for task in legacy:
+    hidden = 0
+    for task in result.scalars().all():
+        if (task.config_json or {}).get("bingo"):
+            continue
+        if only_legacy and not _is_legacy_meet_task(task):
+            continue
         task.is_active = False
-    if legacy:
+        hidden += 1
+    if hidden:
         await db.flush()
-    return len(legacy)
+    return hidden
+
+
+async def _promote_custom_tasks_to_bingo(db: AsyncSession, event_id: int) -> int:
+    """Keep admin-added prompts on the player board instead of hiding them."""
+    result = await db.execute(select(Task).where(Task.event_id == event_id))
+    promoted = 0
+    for task in result.scalars().all():
+        if _is_legacy_meet_task(task):
+            continue
+        changed = False
+        if not _is_bingo_prompt(task):
+            config = dict(task.config_json or {})
+            config["bingo"] = True
+            config.setdefault("category", "ice_breakers")
+            task.config_json = config
+            task.type = TaskType.SELFIE
+            changed = True
+        if not task.is_active:
+            task.is_active = True
+            changed = True
+        if changed:
+            promoted += 1
+    if promoted:
+        await db.flush()
+    return promoted
 
 
 async def ensure_networking_bingo_tasks(db: AsyncSession, event: Event) -> int:
@@ -53,7 +91,7 @@ async def ensure_networking_bingo_tasks(db: AsyncSession, event: Event) -> int:
     from app.services.event_settings import get_settings_for_event
 
     await _deactivate_non_bingo_tasks(db, event.id)
-    event.task_count = BINGO_TASK_COUNT
+    await _promote_custom_tasks_to_bingo(db, event.id)
 
     settings = await get_settings_for_event(db, event.id)
     competition_pts = (
@@ -62,6 +100,8 @@ async def ensure_networking_bingo_tasks(db: AsyncSession, event: Event) -> int:
 
     count = await _active_bingo_task_count(db, event.id)
     if count >= BINGO_TASK_COUNT:
+        event.task_count = count
+        await db.flush()
         return count
 
     by_slug = {
@@ -117,7 +157,10 @@ async def ensure_networking_bingo_tasks(db: AsyncSession, event: Event) -> int:
         for task in new_tasks:
             await assign_task_to_all_participants(db, event.id, task.id)
 
-    return await _active_bingo_task_count(db, event.id)
+    count = await _active_bingo_task_count(db, event.id)
+    event.task_count = count
+    await db.flush()
+    return count
 
 
 async def ensure_participant_bingo_assignments(

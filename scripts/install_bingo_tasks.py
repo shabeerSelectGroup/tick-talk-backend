@@ -38,7 +38,7 @@ async def install(
     if go_live:
         event.status = EventStatus.LIVE
 
-    await _deactivate_non_bingo_tasks(db, event.id)
+    await _deactivate_non_bingo_tasks(db, event.id, only_legacy=False)
 
     by_slug = {
         t.slug: t

@@ -19,12 +19,13 @@ class TaskError(AppError):
     pass
 
 
-def slugify(title: str) -> str:
-    base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:48]
+def slugify(title: str, prefix: str = "") -> str:
+    max_base = max(8, 48 - len(prefix))
+    base = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:max_base]
     if len(base) < 3:
         base = "task"
     suffix = "".join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(4))
-    return f"{base}-{suffix}"
+    return f"{prefix}{base}-{suffix}"
 
 
 async def _ensure_event_editable(db: AsyncSession, event: Event) -> None:
@@ -110,29 +111,43 @@ async def create_task(
     if await _duplicate_title_exists(db, event.id, data.title):
         raise TaskError("DUPLICATE_TASK", f"A task with title '{data.title}' already exists", 409)
 
+    from app.services.networking_bingo_setup import event_uses_bingo_catalog
+
     points = data.points
     if event.mode == EventMode.NETWORKING:
         points = 0
 
-    slug = slugify(data.title)
+    is_bingo = event_uses_bingo_catalog(event)
+    slug_prefix = "bingo-" if is_bingo else ""
+    slug = slugify(data.title, prefix=slug_prefix)
     for _ in range(5):
         existing = await db.execute(
             select(Task.id).where(Task.event_id == event.id, Task.slug == slug)
         )
         if not existing.scalar_one_or_none():
             break
-        slug = slugify(data.title)
+        slug = slugify(data.title, prefix=slug_prefix)
+
+    description = data.description
+    task_type = data.type
+    config_json = None
+    if is_bingo:
+        task_type = TaskType.SELFIE
+        if not (description or "").strip():
+            description = f'Find someone who matches "{data.title}".'
+        config_json = {"bingo": True, "category": "ice_breakers"}
 
     task = Task(
         event_id=event.id,
         slug=slug,
         title=data.title,
-        description=data.description,
-        type=data.type,
+        description=description,
+        type=task_type,
         points=points,
         sort_order=await _next_sort_order(db, event.id),
         is_required=data.is_required,
         is_active=data.is_active,
+        config_json=config_json,
     )
     db.add(task)
     await db.flush()

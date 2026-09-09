@@ -5,15 +5,26 @@ from pathlib import Path
 from app.core.config import get_settings
 from app.storage.base import StorageBackend, StorageError, StoredObjectRef
 
+# app/storage/local.py → backend project root
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+
+
+def resolve_local_storage_root(local_storage_dir: str) -> Path:
+    root = Path(local_storage_dir)
+    if not root.is_absolute():
+        root = _BACKEND_ROOT / root
+    root = root.resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
 
 class LocalStorageBackend(StorageBackend):
     def __init__(self) -> None:
         settings = get_settings()
-        self._root = Path(settings.local_storage_dir).resolve()
-        self._root.mkdir(parents=True, exist_ok=True)
+        self._root = resolve_local_storage_root(settings.local_storage_dir)
         base = settings.local_storage_public_base.strip()
-        if not base:
-            # Relative path works with Vite proxy (5173) and production nginx on the same host.
+        if not base or "localhost:8000" in base or "127.0.0.1:8000" in base:
+            # Same-origin path so the Vite proxy (and nginx) can serve files.
             base = "/api/v1/media"
         self._public_base = base.rstrip("/")
 

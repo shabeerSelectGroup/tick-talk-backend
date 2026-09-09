@@ -300,8 +300,11 @@ async def complete_task(
     participant_task: ParticipantTask,
     task: Task,
     selfie_id: int,
+    *,
+    partner_name: str | None = None,
+    partner_sign: str | None = None,
 ) -> dict:
-    """Finalize task after selfie upload."""
+    """Finalize task after selfie upload or name/sign card."""
     await assert_event_active(db, participant.event_id)
     assert_task_not_completed(participant_task)
 
@@ -311,6 +314,12 @@ async def complete_task(
 
     flow = _flow_meta(participant_task)
     match_id = flow.get("match_id")
+    if partner_name:
+        flow["partner_name"] = partner_name
+    if partner_sign:
+        flow["partner_sign"] = partner_sign
+    if partner_name and not flow.get("completion_method"):
+        flow["completion_method"] = "name"
 
     if task_uses_selfie_flow(task) and not selfie_id:
         raise TaskCompletionError("SELFIE_REQUIRED", "A selfie is required for this task.", 400)
@@ -321,6 +330,8 @@ async def complete_task(
         entries.append(
             {
                 "selfie_id": selfie.id,
+                "partner_name": partner_name or flow.get("partner_name"),
+                "partner_sign": partner_sign,
                 "recorded_at": datetime.now(timezone.utc).isoformat(),
             }
         )
