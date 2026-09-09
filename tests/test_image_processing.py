@@ -83,3 +83,29 @@ def test_validate_rejects_oversized():
     with pytest.raises(ImageProcessingError) as exc:
         validate_image_upload(huge, "image/jpeg")
     assert exc.value.code == "IMAGE_TOO_LARGE"
+
+
+def test_validate_accepts_library_content_types():
+    raw = _jpeg_bytes()
+    validate_image_upload(raw, "image/jpeg; charset=binary")
+    validate_image_upload(raw, "application/octet-stream")
+    validate_image_upload(raw, None)
+    validate_image_upload(raw, "")
+    process_selfie_image(raw, "application/octet-stream")
+    process_selfie_image(raw, "image/jpeg; charset=utf-8")
+
+
+def test_validate_rejects_non_image_content_type():
+    with pytest.raises(ImageProcessingError) as exc:
+        validate_image_upload(_jpeg_bytes(), "video/mp4")
+    assert exc.value.code == "IMAGE_TYPE_UNSUPPORTED"
+
+
+def test_process_png_from_photo_library():
+    img = Image.new("RGBA", (640, 480), color=(10, 120, 200, 255))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    result = process_selfie_image(buf.getvalue(), "image/png")
+    assert result.content_type == "image/jpeg"
+    assert result.width == 640
+    assert result.height == 480

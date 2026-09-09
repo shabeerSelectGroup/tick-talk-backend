@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -10,8 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.models.match import Match
-from app.models.selfie import Selfie
 from app.models.participant import Participant
+from app.models.selfie import Selfie
 from app.services.image_processing import ImageProcessingError, process_selfie_image
 from app.storage import get_storage_backend
 from app.storage.base import StorageError
@@ -116,7 +117,7 @@ async def upload_selfie(
     Process image, upload full + thumbnail, create/update Selfie row, link match.
     """
     try:
-        processed = process_selfie_image(image_data, content_type)
+        processed = await asyncio.to_thread(process_selfie_image, image_data, content_type)
     except ImageProcessingError as e:
         raise SelfieStorageError(e.code, e.message, e.status_code) from e
 

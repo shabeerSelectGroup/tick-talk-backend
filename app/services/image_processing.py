@@ -15,11 +15,35 @@ from app.core.exceptions import AppError
 ALLOWED_CONTENT_TYPES = {
     "image/jpeg",
     "image/jpg",
+    "image/pjpeg",
     "image/png",
     "image/webp",
     "image/heic",
     "image/heif",
+    "image/heic-sequence",
+    "image/heif-sequence",
 }
+
+# Photo-library pickers (iOS/Android) often omit a real MIME type.
+OPAQUE_CONTENT_TYPES = {
+    "application/octet-stream",
+    "binary/octet-stream",
+}
+
+
+def _normalize_content_type(content_type: str | None) -> str | None:
+    if not content_type:
+        return None
+    return content_type.split(";", 1)[0].strip().lower() or None
+
+
+def _rejected_content_type(content_type: str | None) -> bool:
+    normalized = _normalize_content_type(content_type)
+    if not normalized or normalized in OPAQUE_CONTENT_TYPES:
+        return False
+    if normalized in ALLOWED_CONTENT_TYPES or normalized.startswith("image/"):
+        return False
+    return True
 
 
 class ImageProcessingError(AppError):
@@ -50,10 +74,10 @@ def validate_image_upload(data: bytes, content_type: str | None) -> None:
             f"Image exceeds maximum size ({settings.selfie_max_upload_bytes // (1024 * 1024)}MB).",
             413,
         )
-    if content_type and content_type.lower() not in ALLOWED_CONTENT_TYPES:
+    if _rejected_content_type(content_type):
         raise ImageProcessingError(
             "IMAGE_TYPE_UNSUPPORTED",
-            "Supported formats: JPEG, PNG, WebP.",
+            "Supported formats: JPEG, PNG, WebP, HEIC.",
             415,
         )
 
@@ -65,9 +89,20 @@ def process_selfie_image(data: bytes, content_type: str | None = None) -> Proces
 
     try:
         img = Image.open(io.BytesIO(data))
+        img.load()
         img = ImageOps.exif_transpose(img)
+    except Image.DecompressionBombError as e:
+        raise ImageProcessingError(
+            "IMAGE_TOO_LARGE",
+            "Image is too large to process. Choose a smaller photo or take a selfie.",
+            413,
+        ) from e
     except Exception as e:
-        raise ImageProcessingError("IMAGE_INVALID", "Could not read image file.", 400) from e
+        raise ImageProcessingError(
+            "IMAGE_INVALID",
+            "Could not read that photo. Try another image, or take a new selfie.",
+            400,
+        ) from e
 
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
