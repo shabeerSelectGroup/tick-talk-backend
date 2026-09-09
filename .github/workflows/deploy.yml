@@ -24,15 +24,15 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
+          script_stop: true
           script: |
             set -euo pipefail
-            APP_DIR="${{ secrets.DEPLOY_PATH }}"
+            APP_DIR="/home/deploy/apps/ticktalk-api"
             cd "$APP_DIR"
             echo "Deploy path: $(pwd)"
             export DEPLOY_BRANCH=main
             if [ ! -f scripts/deploy.sh ]; then
-              echo "ERROR: scripts/deploy.sh missing after checkout."
-              echo "Is DEPLOY_PATH the tick-talk-backend repo root?"
+              echo "ERROR: scripts/deploy.sh missing."
               ls -la
               exit 1
             fi
