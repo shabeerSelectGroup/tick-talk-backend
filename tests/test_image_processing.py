@@ -79,7 +79,7 @@ def test_validate_rejects_empty():
 
 
 def test_validate_rejects_oversized():
-    huge = b"x" * (9 * 1024 * 1024)
+    huge = b"x" * (21 * 1024 * 1024)
     with pytest.raises(ImageProcessingError) as exc:
         validate_image_upload(huge, "image/jpeg")
     assert exc.value.code == "IMAGE_TOO_LARGE"

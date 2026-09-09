@@ -41,6 +41,21 @@ if [[ "$RUN_MIGRATIONS" == "true" ]]; then
   fi
 fi
 
+echo "==> Allow large selfie uploads in nginx (default is 1MB)"
+NGINX_SNIPPET="/etc/nginx/conf.d/ticktalk-uploads.conf"
+REPO_SNIPPET="${ROOT}/deploy/nginx-uploads.conf"
+if [[ -d /etc/nginx/conf.d && -f "$REPO_SNIPPET" ]]; then
+  if sudo cp "$REPO_SNIPPET" "$NGINX_SNIPPET" \
+    && sudo nginx -t \
+    && sudo systemctl reload nginx; then
+    echo "nginx client_max_body_size set to 25m"
+  else
+    echo "WARN: could not update nginx upload limit."
+    echo "On the API host run:"
+    echo "  sudo cp $REPO_SNIPPET $NGINX_SNIPPET && sudo nginx -t && sudo systemctl reload nginx"
+  fi
+fi
+
 echo "==> Restart supervisor program ticktalk"
 sudo /usr/bin/supervisorctl restart ticktalk
 sleep 2

@@ -45,7 +45,7 @@ class Settings(BaseSettings):
     r2_public_url: str = ""
     r2_endpoint_url: str = ""
 
-    selfie_max_upload_bytes: int = 8 * 1024 * 1024
+    selfie_max_upload_bytes: int = 20 * 1024 * 1024
     selfie_jpeg_quality: int = 90
     selfie_max_dimension: int = 1920
     selfie_thumbnail_size: int = 480
