@@ -56,6 +56,20 @@ if [[ -d /etc/nginx/conf.d && -f "$REPO_SNIPPET" ]]; then
   fi
 fi
 
+echo "==> Sync TickTalk UI nginx site (SPA + /api proxy)"
+UI_NGINX_SITE="/etc/nginx/sites-available/ticktalk"
+REPO_UI_NGINX="${ROOT}/deploy/nginx-ui.conf"
+if [[ -f "$REPO_UI_NGINX" ]]; then
+  if sudo cp "$REPO_UI_NGINX" "$UI_NGINX_SITE" \
+    && sudo ln -sf "$UI_NGINX_SITE" /etc/nginx/sites-enabled/ticktalk \
+    && sudo nginx -t \
+    && sudo systemctl reload nginx; then
+    echo "nginx UI site updated"
+  else
+    echo "WARN: could not update UI nginx site."
+  fi
+fi
+
 echo "==> Restart supervisor program ticktalk"
 sudo /usr/bin/supervisorctl restart ticktalk
 sleep 2
