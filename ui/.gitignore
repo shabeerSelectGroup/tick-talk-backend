@@ -1,0 +1,45 @@
+# Node modules
+node_modules/
+
+# Build outputs
+build/
+dist/
+
+
+# Local env files
+.env.local
+.env.*.local
+.env
+
+# Logs
+logs/
+*.log
+yarn-error.log*
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs and editors
+.vscode/
+.idea/
+*.sublime-workspace
+
+# Cache and temp
+.cache/
+.vite/
+.turbo/
+.parcel-cache/
+.next/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Misc
+.eslintcache
+*.tsbuildinfo
+.pnp.*
+package-lock.json
+pnpm-lock.yaml

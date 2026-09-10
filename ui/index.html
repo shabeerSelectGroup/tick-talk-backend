@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Nunito:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#ff6b6b" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#ff4757" media="(prefers-color-scheme: dark)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Tick Talk" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="format-detection" content="telephone=no" />
+    <link
+      rel="apple-touch-startup-image"
+      href="/splash/apple-splash-1170-2532.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)"
+    />
+    <title>Tick Talk</title>
+    <style>
+      #app-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(180deg, #ff6b6b, #ff4757);
+        color: #fff;
+        font-family: 'Nunito', system-ui, sans-serif;
+      }
+      #app-loader.hidden { display: none; }
+    </style>
+  </head>
+  <body class="bg-white text-slate-900 antialiased">
+    <div id="app-loader" aria-hidden="true">
+      <img src="/icons/icon-192.png" width="80" height="80" alt="" />
+      <p style="margin-top: 1rem; font-weight: 800; letter-spacing: -0.02em">TickTalk</p>
+    </div>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+    <script>
+      window.addEventListener('load', function () {
+        var el = document.getElementById('app-loader')
+        if (el) el.classList.add('hidden')
+      })
+    </script>
+  </body>
+</html>

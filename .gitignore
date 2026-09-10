@@ -28,6 +28,15 @@ dist/
 build/
 *.egg-info/
 
+# Frontend (ui/)
+ui/node_modules/
+ui/dist/
+ui/.vite/
+ui/.cache/
+ui/coverage/
+ui/*.tsbuildinfo
+ui/yarn-error.log
+
 # Type checkers and linters
 .mypy_cache/
 .ruff_cache/

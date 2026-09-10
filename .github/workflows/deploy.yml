@@ -7,17 +7,44 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: deploy-ticktalk-api
+  group: deploy-ticktalk
   cancel-in-progress: true
 
 jobs:
   deploy:
-    name: Deploy TickTalk API
+    name: Deploy TickTalk API + UI
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
 
     steps:
-      - name: Deploy over SSH
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: yarn
+          cache-dependency-path: ui/yarn.lock
+
+      - name: Build UI
+        run: |
+          cd ui
+          yarn install --frozen-lockfile
+          yarn build
+          tar czf ../ui-dist.tar.gz -C dist .
+
+      - name: Upload UI bundle
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT != '' && secrets.SSH_PORT || 22 }}
+          source: ui-dist.tar.gz
+          target: /tmp/ticktalk-ui-deploy
+
+      - name: Deploy API and extract UI on server
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -27,6 +54,7 @@ jobs:
           script: |
             set -euo pipefail
             APP_DIR="/home/deploy/apps/ticktalk-api"
+            UI_DIST="/home/deploy/apps/ticktalk/dist"
             cd "$APP_DIR"
             echo "Deploy path: $(pwd)"
             export DEPLOY_BRANCH=main
@@ -36,3 +64,8 @@ jobs:
               exit 1
             fi
             bash scripts/deploy.sh
+            mkdir -p "$UI_DIST"
+            tar xzf /tmp/ticktalk-ui-deploy/ui-dist.tar.gz -C "$UI_DIST"
+            chown -R deploy:deploy "$UI_DIST"
+            rm -f /tmp/ticktalk-ui-deploy/ui-dist.tar.gz
+            echo "Deployed UI to $UI_DIST ($(date -u +%Y-%m-%dT%H:%M:%SZ))"

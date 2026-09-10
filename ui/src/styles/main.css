@@ -1,0 +1,67 @@
+@import 'tailwindcss';
+@import './animations.css';
+@import './game-theme.css';
+@import './game-theme-ticktalk.css';
+@import './admin-theme.css';
+@import './mobile-app.css';
+
+@theme {
+  --color-brand-50: #f0f9ff;
+  --color-brand-100: #e0f2fe;
+  --color-brand-500: #0ea5e9;
+  --color-brand-600: #0284c7;
+  --color-brand-700: #0369a1;
+  --color-brand-800: #075985;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+    background: #f1f5f9;
+  }
+  body {
+    min-height: 100dvh;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    background: #f1f5f9;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex min-h-11 touch-manipulation items-center justify-center rounded-xl bg-brand-600 px-5 py-2.5 font-semibold text-white transition active:scale-[0.98] disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex min-h-11 touch-manipulation items-center justify-center rounded-xl border border-slate-600 bg-slate-800 px-5 py-2.5 font-semibold text-slate-100 transition active:scale-[0.98];
+  }
+  .card {
+    @apply rounded-2xl border border-slate-800 bg-slate-900/80 p-4 shadow-lg backdrop-blur;
+  }
+  .input {
+    @apply w-full min-h-11 rounded-xl border border-slate-700 bg-slate-800 px-4 text-slate-100 placeholder:text-slate-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30;
+  }
+  .page-container {
+    @apply relative mx-auto flex min-h-dvh w-full max-w-[430px] flex-col px-4 pt-4;
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+  .participant-shell {
+    @apply relative mx-auto flex h-dvh w-full max-w-[430px] flex-col overflow-hidden;
+  }
+  .participant-main {
+    @apply flex min-h-0 min-w-0 flex-1 flex-col px-3 pt-2;
+    padding-bottom: max(4.75rem, calc(env(safe-area-inset-bottom) + 3.5rem));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Public live wall */
+html:has(.wall-root) {
+  color-scheme: light;
+  background: linear-gradient(180deg, #ff6b6b, #ff4757);
+}
