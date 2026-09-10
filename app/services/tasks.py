@@ -36,14 +36,35 @@ async def _ensure_event_editable(db: AsyncSession, event: Event) -> None:
 async def _duplicate_title_exists(
     db: AsyncSession, event_id: int, title: str, exclude_task_id: int | None = None
 ) -> bool:
+    return await _find_task_by_title(db, event_id, title, exclude_task_id=exclude_task_id) is not None
+
+
+async def _find_task_by_title(
+    db: AsyncSession,
+    event_id: int,
+    title: str,
+    *,
+    exclude_task_id: int | None = None,
+    active_only: bool = False,
+) -> Task | None:
     normalized = normalize_title(title)
-    result = await db.execute(select(Task.id, Task.title).where(Task.event_id == event_id))
-    for task_id, existing_title in result.all():
-        if exclude_task_id and task_id == exclude_task_id:
+    q = select(Task).where(Task.event_id == event_id)
+    if active_only:
+        q = q.where(Task.is_active.is_(True))
+    result = await db.execute(q)
+    for task in result.scalars().all():
+        if exclude_task_id and task.id == exclude_task_id:
             continue
-        if normalize_title(existing_title) == normalized:
-            return True
-    return False
+        if normalize_title(task.title) == normalized:
+            return task
+    return None
+
+
+def merge_bulk_import_order(existing_ids: list[int], imported_ids: list[int]) -> list[int]:
+    """Keep tasks not in the import file, then append the import block in file order."""
+    mentioned = set(imported_ids)
+    unmentioned = [task_id for task_id in existing_ids if task_id not in mentioned]
+    return unmentioned + imported_ids
 
 
 async def _next_sort_order(db: AsyncSession, event_id: int) -> int:
@@ -240,15 +261,32 @@ async def bulk_import_tasks(
     if not to_import:
         raise TaskError("EMPTY_IMPORT", "No tasks to import", 400)
 
+    all_tasks_result = await db.execute(
+        select(Task).where(Task.event_id == event.id).order_by(Task.sort_order, Task.id)
+    )
+    all_tasks = list(all_tasks_result.scalars().all())
+    existing_tasks = [task for task in all_tasks if task.is_active]
+
     created_tasks: list[Task] = []
+    imported_ids: list[int] = []
+    seen_in_file: set[int] = set()
     skipped = 0
     errors: list[str] = []
 
     for i, line in enumerate(to_import, start=1):
         try:
-            if await _duplicate_title_exists(db, event.id, line.title):
+            existing = await _find_task_by_title(
+                db, event.id, line.title, active_only=True
+            )
+            if existing:
+                if existing.id in seen_in_file:
+                    skipped += 1
+                    continue
+                imported_ids.append(existing.id)
+                seen_in_file.add(existing.id)
                 skipped += 1
                 continue
+
             task = await create_task(
                 db,
                 event,
@@ -261,6 +299,8 @@ async def bulk_import_tasks(
                 assign=True,
             )
             created_tasks.append(task)
+            imported_ids.append(task.id)
+            seen_in_file.add(task.id)
         except TaskError as e:
             if e.code == "DUPLICATE_TASK":
                 skipped += 1
@@ -268,6 +308,12 @@ async def bulk_import_tasks(
                 errors.append(f"Line {i}: {e.message}")
         except Exception as e:
             errors.append(f"Line {i}: {str(e)}")
+
+    if imported_ids:
+        active_ids = [task.id for task in existing_tasks]
+        reordered_active = merge_bulk_import_order(active_ids, imported_ids)
+        inactive_ids = [task.id for task in all_tasks if not task.is_active]
+        await reorder_tasks(db, event, reordered_active + inactive_ids)
 
     return {
         "created": len(created_tasks),

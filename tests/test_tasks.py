@@ -1,5 +1,5 @@
 from app.schemas.task import BulkImportRequest, normalize_title
-from app.services.tasks import parse_bulk_text, slugify
+from app.services.tasks import merge_bulk_import_order, parse_bulk_text, slugify
 
 
 def test_normalize_title_duplicate_detection():
@@ -31,3 +31,15 @@ Find someone who speaks 3 languages|Must speak 3+ languages
 def test_bulk_import_request_requires_content():
     req = BulkImportRequest(text="One task title here")
     assert req.text is not None
+
+
+def test_merge_bulk_import_order_appends_import_block():
+    existing = [1, 2, 3]
+    imported = [4, 5]
+    assert merge_bulk_import_order(existing, imported) == [1, 2, 3, 4, 5]
+
+
+def test_merge_bulk_import_order_reorders_matched_tasks():
+    existing = [10, 20, 30, 40]
+    imported = [30, 10, 40]
+    assert merge_bulk_import_order(existing, imported) == [20, 30, 10, 40]
