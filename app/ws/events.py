@@ -16,6 +16,7 @@ class WsEventType(str, enum.Enum):
     EVENT_STARTED = "event_started"
     EVENT_PAUSED = "event_paused"
     EVENT_ENDED = "event_ended"
+    EVENT_DATA_CLEARED = "event_data_cleared"
     # Control plane
     PING = "ping"
     PONG = "pong"
@@ -32,6 +33,7 @@ EVENT_CHANNELS = {
     WsEventType.EVENT_STARTED: ["feed", "wall", "participants", "leaderboard"],
     WsEventType.EVENT_PAUSED: ["feed", "wall", "participants"],
     WsEventType.EVENT_ENDED: ["feed", "wall", "participants", "leaderboard"],
+    WsEventType.EVENT_DATA_CLEARED: ["feed", "wall", "participants", "leaderboard"],
 }
 
 

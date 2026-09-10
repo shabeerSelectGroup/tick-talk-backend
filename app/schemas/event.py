@@ -121,6 +121,19 @@ class EventCreateResponse(BaseModel):
     tasks_created: int
 
 
+class EventClearDataRequest(BaseModel):
+    confirm: bool = False
+
+
+class EventClearDataResponse(BaseModel):
+    participants_removed: int
+    selfies_removed: int
+    matches_removed: int
+    activity_logs_removed: int
+    previous_status: str
+    event_status: str
+
+
 class EventPublicOut(BaseModel):
     id: int
     code: str

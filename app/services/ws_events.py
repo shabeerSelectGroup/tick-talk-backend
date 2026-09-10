@@ -138,3 +138,19 @@ async def emit_event_ended(
             "awards": awards or [],
         },
     )
+
+
+async def emit_event_data_cleared(
+    event_id: int,
+    *,
+    event_name: str,
+    participants_removed: int,
+) -> None:
+    await publish_event(
+        event_id,
+        WsEventType.EVENT_DATA_CLEARED,
+        {
+            "event_name": event_name,
+            "participants_removed": participants_removed,
+        },
+    )

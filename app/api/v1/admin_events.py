@@ -18,6 +18,8 @@ from app.models.participant import Participant, ParticipantTask
 from app.models.selfie import Selfie
 from app.schemas.common import ok
 from app.schemas.event import (
+    EventClearDataRequest,
+    EventClearDataResponse,
     EventCreateRequest,
     EventCreateResponse,
     EventDetailOut,
@@ -178,6 +180,38 @@ async def pause_event(
     await db.flush()
     await emit_event_paused(event.id, event_name=event.name, reason="admin_pause")
     return ok(EventOut.model_validate(event).model_dump())
+
+
+@router.post("/events/{event_id}/clear-data")
+async def clear_event_data(
+    body: EventClearDataRequest,
+    event: Event = Depends(get_admin_event),
+    db: AsyncSession = Depends(get_db),
+):
+    """Remove all players, selfies, scans, scores, and activity. Tasks and settings are kept."""
+    if not body.confirm:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail={"code": "CONFIRM_REQUIRED", "message": "Set confirm=true to clear event data."},
+        )
+    from app.services.event_reset import clear_event_players_and_submissions
+    from app.services.ws_events import emit_event_data_cleared
+
+    try:
+        result = await clear_event_players_and_submissions(db, event)
+    except AppError as e:
+        raise _handle_service_error(e) from e
+
+    try:
+        await emit_event_data_cleared(
+            event.id,
+            event_name=event.name,
+            participants_removed=result["participants_removed"],
+        )
+    except Exception as exc:
+        logger.warning("event_data_cleared broadcast failed for event %s: %s", event.id, exc)
+
+    return ok(EventClearDataResponse.model_validate(result).model_dump())
 
 
 @router.post("/events/{event_id}/end")

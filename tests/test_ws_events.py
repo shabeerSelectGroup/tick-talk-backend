@@ -18,3 +18,9 @@ def test_build_envelope_shape():
     assert env["payload"]["task_id"] == 9
     assert "id" in env
     assert "timestamp" in env
+
+
+def test_channels_for_event_data_cleared():
+    ch = channels_for_event(1, WsEventType.EVENT_DATA_CLEARED)
+    assert "event:1:wall" in ch
+    assert "event:1:leaderboard" in ch
